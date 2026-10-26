@@ -1,0 +1,658 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="夕まずめの神戸の波止で、60秒間に釣った魚の合計グラムを競うドット絵釣りゲーム。">
+<meta property="og:title" content="60秒防波堤">
+<meta property="og:description" content="60秒で何グラム釣れるか。しょぼつりくんの防波堤釣りゲーム。">
+<meta property="og:url" content="https://kobekko.github.io/games/pier60/">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}</style>
+<title>60秒防波堤</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap">
+<style>
+/* layout: one-screen pixel game, low-res canvas scaled up with nearest-neighbour, cards float over it */
+:root{
+  --night:#121a30; --ink:#f3ead8; --dim:#a9a3b8; --buoy:#e8473a; --sun:#f2a660; --panel:#1a1f36; --edge:#000000;
+  --dot:"DotGothic16","Hiragino Sans","Noto Sans JP",monospace;
+  color-scheme:dark;
+}
+[hidden]{display:none!important}
+html{height:100%;box-sizing:border-box}
+*,*::before,*::after{box-sizing:inherit}
+body{height:100%;background:var(--night);color:var(--ink);font-family:var(--dot);display:flex;flex-direction:column;gap:10px;
+  padding-block:12px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));overflow:hidden;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;max-width:900px;width:100%;margin:0 auto}
+h1{font-weight:400;font-size:22px;margin:0;letter-spacing:.06em}
+h1 span{color:var(--buoy)}
+header p{margin:0;color:var(--dim);font-size:12px}
+#stage{position:relative;flex:1;min-height:0;max-width:900px;width:100%;margin:0 auto;overflow:hidden;background:#111a30;border:3px solid var(--edge);box-shadow:0 0 0 2px #2e3658}
+canvas{display:block;image-rendering:pixelated}
+#c{width:100%;height:100%;touch-action:none;cursor:pointer;-webkit-user-select:none;user-select:none}
+.over{position:absolute;inset:0;display:grid;place-items:center;background:rgba(10,12,24,.45);padding:16px}
+.card{background:var(--panel);border:3px solid var(--ink);box-shadow:5px 5px 0 var(--edge);padding:20px 18px;width:min(360px,100%);max-height:100%;overflow:auto}
+.card h2{font-weight:400;font-size:30px;margin:0 0 6px;letter-spacing:.04em}
+.hero-row{display:flex;gap:14px;align-items:center;margin-bottom:12px}
+#hero{width:56px;height:66px;flex:none}
+.card .lead{margin:0;color:var(--dim);font-size:14px;line-height:1.6}
+.card ol{margin:0 0 18px;padding-left:1.3em;font-size:14px;line-height:1.8}
+.card ol b{color:var(--sun);font-weight:400}
+button,.btn{font:inherit;font-size:15px;border:3px solid var(--edge);border-radius:0;padding:9px 16px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;box-shadow:3px 3px 0 var(--edge)}
+button:active,.btn:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--edge)}
+.primary{background:var(--buoy);color:#fff}
+.ghost{background:#2c3354;color:var(--ink)}
+button:focus-visible,.btn:focus-visible{outline:2px solid var(--sun);outline-offset:3px}
+.btns{display:flex;gap:10px;flex-wrap:wrap}
+.btns>*{flex:1 1 auto}
+.rank{font-size:15px;color:var(--sun);margin:0 0 2px;letter-spacing:.08em}
+.total{font-size:44px;margin:0;line-height:1.1;font-variant-numeric:tabular-nums}
+.total small{font-size:20px;margin-left:4px}
+.sub{color:var(--dim);font-size:13px;margin:4px 0 12px}
+#list{list-style:none;margin:0 0 16px;padding:10px 0;border-block:2px dashed #3a4166;font-size:14px;display:grid;gap:4px}
+#list li{display:flex;justify-content:space-between;gap:10px;font-variant-numeric:tabular-nums}
+#list li span:last-child{color:var(--dim)}
+.note{-webkit-user-select:text;user-select:text;font-size:12px;color:var(--dim);margin:10px 0 0;min-height:1em;word-break:break-all}
+.promo{display:flex;align-items:center;gap:10px;margin-top:14px;padding:10px 12px;background:#2a1418;border:2px solid #ff3b3b;color:var(--ink);text-decoration:none;box-shadow:3px 3px 0 var(--edge)}
+.promo:hover{background:#3a1a1f}
+.promo:focus-visible{outline:2px solid var(--sun);outline-offset:3px}
+.promo .play{flex:none;width:30px;height:22px;background:#ff3b3b;display:grid;place-items:center}
+.promo .play::after{content:"";border-left:9px solid #fff;border-top:6px solid transparent;border-bottom:6px solid transparent;margin-left:2px}
+.promo b{display:block;font-weight:400;font-size:14px}
+.promo small{display:block;color:var(--dim);font-size:11px;margin-top:2px}
+</style>
+</head>
+<body>
+<header>
+  <h1>60秒<span>防波堤</span></h1>
+  <p>長押しで溜めて投げる / ウキが沈んだらタップ / 長押しで巻く</p>
+</header>
+<div id="stage">
+  <canvas id="c" aria-label="釣りゲーム画面"></canvas>
+  <div class="over" id="over">
+    <div class="card" id="startCard">
+      <div class="hero-row">
+        <canvas id="hero" width="28" height="33" aria-hidden="true"></canvas>
+        <div><h2>60秒防波堤</h2><p class="lead">夕まずめの神戸の波止。60秒で何グラム釣れるか。</p></div>
+      </div>
+      <ol>
+        <li>画面を<b>長押し</b>して力を溜め、離して投げる。遠投ほど大物が出る。</li>
+        <li>ウキが<b>ズボッと沈んだ瞬間</b>にタップ。早すぎても遅すぎてもダメ。</li>
+        <li><b>長押しで巻く</b>。テンションが赤くなったら指を離して糸を守る。</li>
+      </ol>
+      <div class="btns"><button class="primary" id="startBtn">釣りはじめる</button></div>
+      <a class="promo" href="https://www.youtube.com/@syobo_fishing" target="_blank" rel="noopener"><span class="play" aria-hidden="true"></span><span><b>しょぼ釣りチャンネル</b><small>本物の釣りはYouTubeで。チャンネル登録よろしく</small></span></a>
+    </div>
+    <div class="card" id="resultCard" hidden>
+      <p class="rank" id="rank"></p>
+      <p class="total"><span id="total">0</span><small>g</small></p>
+      <p class="sub" id="sub"></p>
+      <ul id="list"></ul>
+      <div class="btns">
+        <button class="primary" id="again">もう一回</button>
+        <a class="btn ghost" id="share" href="https://x.com" target="_blank" rel="noopener">Xでシェア</a>
+        <button class="ghost" id="copy">結果をコピー</button>
+      </div>
+      <p class="note" id="note"></p>
+      <a class="promo" href="https://www.youtube.com/@syobo_fishing" target="_blank" rel="noopener"><span class="play" aria-hidden="true"></span><span><b>しょぼ釣りチャンネル</b><small>本物の釣りはYouTubeで。チャンネル登録よろしく</small></span></a>
+    </div>
+  </div>
+</div>
+
+<script>
+const SHARE_URL = 'https://kobekko.github.io/games/pier60/';
+const GAME_LEN = 60;
+const LH = 150;               // low-res scene height in "dots"
+const $ = s => document.querySelector(s);
+const cv = $('#c'), ctx = cv.getContext('2d');
+const lc = document.createElement('canvas'), l = lc.getContext('2d');   // scene, low-res
+const bg = document.createElement('canvas'), fg = document.createElement('canvas');
+let W = 0, H = 0, DPR = 1, SC = 1, LW = 200;
+
+/* ---------- hero sprite (the user's character) ---------- */
+const PAL = {k:'#1d1a1a', w:'#ffffff', r:'#ff4048'};
+const HERO = [
+  "........kkkkkkkkkkkkk.......",
+  "........kkkkkkkkkkkkk.......",
+  "........kkkkkkkkkkkkk.......",
+  "........kkkkkkkkkkkkk.......",
+  "........kkkkkkkkkkkkk.......",
+  ".......kkkkkkkkkkkkkkk......",
+  ".......kkkkkkkkkkkkkkk......",
+  "......kkkkkkkkkkkkkkkkk.....",
+  ".....kkkkkkkkkkkkkkkkkkk....",
+  "....kkkkkkkkkkkkkkkkkkkkk...",
+  "...kkkkkkkkkkkkkkkkkkkkkkkk.",
+  "..kkkkkkkkkkkkkkkkkkkkkkkkkk",
+  ".....kkkkkkkkkkkkkkkkkkkk...",
+  ".......kwwwwwwwwwwwwwk......",
+  ".......kwwwwwwwwwwwwwwk.....",
+  "......kwwkkwwwwwwwkkwwk.....",
+  "......kwwkkwwwwwwwkkwwwk....",
+  "..kkkkwwwkkwwwwwwwkkwwwk....",
+  ".kwwwwwwwkkwwwwwwwkkwwwk....",
+  "kwwwwwwrrwwwwwwwwwwwwrrwk...",
+  "kwwwwwrrrrwkwwkwwkwwrrrrk...",
+  "kwwwwwrrrrwwkkwkkwwwrrrrk...",
+  ".kwwwwwrrwwwwwwwwwwwwrrwk...",
+  "..kkkkwwwwwwwwwwwwwwwwwwk...",
+  ".....kwwwwwwwwwwwwwwwwwwwk..",
+  ".....kwwwwwwwwwwwwwwwwwwwk..",
+  ".....kwwwwwwwwwwwwwwwwwwwk..",
+  ".....kwwwwwwwwwwwwwwwwwwwk..",
+  ".....kwwwwwwwwwwwwwwwwwwwwk.",
+  ".....kwwwwwwwwwwwwwwwwwwwwk.",
+  ".....kwwwwwwwwwwwwwwwwwwwwk.",
+  ".....kwwwwwwwwwwwwwwwwwwwwk.",
+  "......kkkkkkkkkkkkkkkkkkkk..",
+];
+const heroC = document.createElement('canvas'); heroC.width = 28; heroC.height = 33;
+function paintHero(g){ HERO.forEach((row, y) => [...row].forEach((ch, x) => { if (PAL[ch]){ g.fillStyle = PAL[ch]; g.fillRect(x, y, 1, 1); } })); }
+paintHero(heroC.getContext('2d'));
+{ const g = $('#hero').getContext('2d'); g.translate(28, 0); g.scale(-1, 1); paintHero(g); }
+
+/* ---------- data ---------- */
+const FISH = [
+  {n:'イワシ', min:15,  max:45,   d:[0,.5],  pow:.25, col:'#9fb7c9', w:5},
+  {n:'アジ',   min:60,  max:280,  d:[0,1],   pow:.4,  col:'#b9c4a8', w:6},
+  {n:'メバル', min:50,  max:220,  d:[0,.6],  pow:.35, col:'#8a7462', w:4},
+  {n:'カサゴ', min:80,  max:350,  d:[0,.5],  pow:.45, col:'#c45a40', w:4},
+  {n:'サバ',   min:200, max:650,  d:[.3,1],  pow:.6,  col:'#4f7a8a', w:4},
+  {n:'タチウオ',min:300, max:900,  d:[.4,1],  pow:.6,  col:'#dfe3e8', w:3},
+  {n:'マダコ', min:300, max:1600, d:[.2,.8], pow:.7,  col:'#b05b44', w:2},
+  {n:'チヌ',   min:500, max:2200, d:[.5,1],  pow:.85, col:'#7a7e86', w:2},
+  {n:'ハマチ', min:1200,max:3200, d:[.7,1],  pow:1,   col:'#6f8fa6', w:1.3},
+  {n:'長靴',   min:0,   max:0,    d:[0,1],   pow:.15, col:'#4a4f58', w:1.4, junk:true},
+];
+const meters = d => Math.round(5 + 55*d);
+const fmt = n => n.toLocaleString('ja-JP');
+
+let S, running = false, holding = false;
+function newState(){
+  return {mode:'idle', time:GAME_LEN, started:false, over:false, catches:[], power:0, phase:0, d:.5,
+    castT:0, waitT:0, biteT:0, nib:0, dip:0, p:0, tension:0, surge:1, surgeT:1, fish:null, wt:0, fpow:0,
+    msg:'長押しで溜めて、離して投げる', msgT:99, card:null, cardT:0, parts:[], shake:0};
+}
+S = newState();
+function say(m, t=1.4){ S.msg = m; S.msgT = t; }
+
+function pickFish(d){
+  const pool = FISH.filter(f => d >= f.d[0] && d <= f.d[1]);
+  let tot = 0;
+  const ws = pool.map(f => { const w = f.w * (f.junk ? 1 : 1 + d*f.min/800); tot += w; return w; });
+  let r = Math.random()*tot, f = pool[0];
+  for (let i = 0; i < pool.length; i++){ r -= ws[i]; if (r <= 0){ f = pool[i]; break; } }
+  const u = Math.pow(Math.random(), 1.7 - d);
+  const wt = f.junk ? 0 : Math.round(f.min + (f.max - f.min)*u);
+  const rel = f.junk ? 0 : (wt - f.min)/(f.max - f.min);
+  return {f, wt, power: f.pow*(.75 + .5*rel)};
+}
+
+/* ---------- geometry (low-res dots) ---------- */
+const seaTop = () => Math.round(LH*.44);
+const pierTop = () => Math.round(LH*.68);
+const pierX = () => Math.max(Math.round(LW*.29), 44);
+const heroX = () => pierX() - 18;
+const spot = d => ({x: Math.round(pierX() + 10 + (LW - pierX() - 18)*d), y: Math.round(LH*(.86 - .36*d))});
+const edge = () => ({x: pierX() + 3, y: Math.round(LH*.8)});
+function bobPos(){
+  const s = spot(S.d);
+  if (S.mode === 'fight'){ const e = edge(), p = Math.max(0, S.p); return {x: Math.round(s.x + (e.x - s.x)*p), y: Math.round(s.y + (e.y - s.y)*p)}; }
+  return s;
+}
+function depthNow(){ return S.mode === 'fight' ? S.d*(1 - Math.max(0, S.p)) : S.d; }
+
+/* ---------- input ---------- */
+function press(){
+  if (!running || S.over) return;
+  switch (S.mode){
+    case 'idle': S.mode = 'charge'; S.phase = 0; S.started = true; S.msgT = 0; break;
+    case 'wait': say('早アワセ… エサだけ流れた'); S.mode = 'idle'; splash(bobPos(), 6); break;
+    case 'bite': startFight(); break;
+    case 'caught': S.cardT = 0; break;
+  }
+}
+function release(){
+  if (S.mode === 'charge'){ S.d = Math.max(.02, S.power); S.mode = 'cast'; S.castT = 0; say(meters(S.d) + 'm', 1); }
+}
+cv.addEventListener('contextmenu', e => e.preventDefault());
+addEventListener('selectstart', e => { if (running) e.preventDefault(); });
+cv.addEventListener('pointerdown', e => { e.preventDefault(); holding = true; press(); });
+addEventListener('pointerup', () => { holding = false; release(); });
+addEventListener('pointercancel', () => { holding = false; release(); });
+addEventListener('keydown', e => { if (e.code === 'Space' && running && $('#over').hidden){ e.preventDefault(); if (!e.repeat){ holding = true; press(); } } });
+addEventListener('keyup', e => { if (e.code === 'Space'){ holding = false; release(); } });
+
+function startFight(){
+  const r = pickFish(S.d);
+  S.fish = r.f; S.wt = r.wt; S.fpow = r.power;
+  S.mode = 'fight'; S.p = 0; S.tension = .15; S.surge = 1; S.surgeT = .6 + Math.random();
+  say('アワセ！ 長押しで巻け', 1.2); splash(bobPos(), 10); S.shake = .25;
+}
+function caught(){
+  S.catches.push({n:S.fish.n, wt:S.wt, junk:!!S.fish.junk});
+  S.mode = 'caught'; S.cardT = 1.7; S.card = {f:S.fish, wt:S.wt};
+  splash(edge(), 12);
+}
+function splash(p, n){
+  for (let i = 0; i < n; i++) S.parts.push({x:p.x, y:p.y, vx:(Math.random()-.5)*40, vy:-20 - Math.random()*40, l:.6 + Math.random()*.3});
+  S.parts.push({ring:true, x:p.x, y:p.y, l:1});
+}
+
+/* ---------- update ---------- */
+function update(dt){
+  if (S.started && !S.over){
+    S.time -= dt;
+    if (S.time <= 0){ S.time = 0; if (S.mode !== 'fight' && S.mode !== 'caught') return endGame(); }
+  }
+  S.msgT -= dt; S.shake = Math.max(0, S.shake - dt); S.dip = Math.max(0, S.dip - dt*2.5);
+  switch (S.mode){
+    case 'charge': S.phase += dt*1.25; S.power = .5 - .5*Math.cos(S.phase*Math.PI); break;
+    case 'cast':
+      S.castT += dt/.7;
+      if (S.castT >= 1){ S.mode = 'wait'; S.waitT = 1.2 + Math.random()*2.6; S.nib = .4; splash(spot(S.d), 8); }
+      break;
+    case 'wait':
+      S.waitT -= dt; S.nib -= dt;
+      if (S.nib <= 0){ S.nib = .5 + Math.random()*1.1; if (Math.random() < .55) S.dip = .4; }
+      if (S.waitT <= 0){ S.mode = 'bite'; S.biteT = .8; splash(spot(S.d), 5); }
+      break;
+    case 'bite':
+      S.biteT -= dt; S.dip = 1;
+      if (S.biteT <= 0){ say('エサだけ取られた'); S.mode = 'idle'; }
+      break;
+    case 'fight': fight(dt); break;
+    case 'caught':
+      S.cardT -= dt;
+      if (S.cardT <= 0){ S.mode = 'idle'; if (S.time <= 0) endGame(); }
+      break;
+  }
+  stepParts(dt);
+}
+function stepParts(dt){
+  for (const p of S.parts){
+    if (p.ring) p.l -= dt*1.1;
+    else { p.vy += 110*dt; p.x += p.vx*dt; p.y += p.vy*dt; p.l -= dt; }
+  }
+  S.parts = S.parts.filter(p => p.l > 0);
+}
+function fight(dt){
+  const pw = S.fpow;
+  S.surgeT -= dt;
+  if (S.surgeT <= 0){
+    if (S.surge > 1){ S.surge = 1; S.surgeT = .7 + Math.random()*1.5; }
+    else { S.surge = 1.8 + pw; S.surgeT = .35 + Math.random()*.5; S.shake = .15; splash(bobPos(), 4); }
+  }
+  if (holding){
+    S.p += dt*(.38 - .15*pw)/(S.surge > 1 ? 1.6 : 1);
+    S.tension += dt*(.25 + .6*pw*S.surge);
+  } else {
+    S.tension -= dt*.85;
+    S.p -= dt*.09*pw*S.surge;
+  }
+  S.tension = Math.max(0, S.tension);
+  if (S.tension >= 1){ say('ラインブレイク！', 1.6); S.mode = 'idle'; S.shake = .35; }
+  else if (S.p < -.25){ say('バレた…', 1.6); S.mode = 'idle'; }
+  else if (S.p >= 1) caught();
+}
+
+/* ---------- pixel helpers ---------- */
+const BAYER = [[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]];
+function bands(g, y0, y1, cols){
+  for (let y = y0; y < y1; y++){
+    const f = (y - y0)/(y1 - y0)*(cols.length - 1), i = Math.floor(f), fr = f - i;
+    g.fillStyle = cols[i]; g.fillRect(0, y, LW, 1);
+    if (fr > 0 && cols[i+1]){
+      g.fillStyle = cols[i+1];
+      for (let x = 0; x < LW; x++) if ((BAYER[y & 3][x & 3] + .5)/16 < fr) g.fillRect(x, y, 1, 1);
+    }
+  }
+}
+function halfDisc(g, cx, cy, r, c){ g.fillStyle = c; for (let dy = -r; dy <= 0; dy++){ const h = Math.floor(Math.sqrt(r*r - dy*dy)); g.fillRect(cx - h, cy + dy, h*2 + 1, 1); } }
+function disc(g, cx, cy, rx, ry, c){ g.fillStyle = c; for (let dy = -ry; dy <= ry; dy++){ const h = Math.round(rx*Math.sqrt(1 - (dy/ry)*(dy/ry))); g.fillRect(cx - h, cy + dy, h*2 + 1, 1); } }
+function ring(g, cx, cy, rx, ry, c){ g.fillStyle = c; const n = Math.max(12, rx*4); for (let i = 0; i < n; i++){ const a = i/n*Math.PI*2; g.fillRect(Math.round(cx + Math.cos(a)*rx), Math.round(cy + Math.sin(a)*ry), 1, 1); } }
+function line(g, x0, y0, x1, y1, c){
+  g.fillStyle = c; x0 = Math.round(x0); y0 = Math.round(y0); x1 = Math.round(x1); y1 = Math.round(y1);
+  const dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1; let e = dx + dy;
+  for (let i = 0; i < 2000; i++){ g.fillRect(x0, y0, 1, 1); if (x0 === x1 && y0 === y1) break; const e2 = 2*e; if (e2 >= dy){ e += dy; x0 += sx; } if (e2 <= dx){ e += dx; y0 += sy; } }
+}
+function curve(g, a, b, sag, c){
+  g.fillStyle = c; const mx = (a.x + b.x)/2, my = (a.y + b.y)/2 + sag, n = Math.max(4, Math.abs(b.x - a.x) + Math.abs(b.y - a.y));
+  for (let i = 0; i <= n; i++){ const t = i/n, u = 1 - t; g.fillRect(Math.round(u*u*a.x + 2*u*t*mx + t*t*b.x), Math.round(u*u*a.y + 2*u*t*my + t*t*b.y), 1, 1); }
+}
+
+/* ---------- static layers ---------- */
+const SKY = ['#1b2140','#2e2a55','#4b3466','#723f6a','#a04e66','#d0665c','#f0915e'];
+const SEA = ['#5e4a72','#33406a','#25325a','#1a2648','#121b36'];
+const city = [];
+{ let x = 0, seed = 7; const rnd = () => (seed = seed*16807 % 2147483647) / 2147483647;
+  while (x < 1){ const w = .012 + rnd()*.03; city.push({x, w, h: .012 + rnd()*rnd()*.07, lit: rnd()}); x += w; } }
+const sunX = () => Math.round(LW*.87);
+
+function buildStatic(){
+  bg.width = LW; bg.height = LH; fg.width = LW; fg.height = LH;
+  const b = bg.getContext('2d'), st = seaTop();
+  bands(b, 0, st, SKY);
+  // Rokko range: far ridge, near ridge (lower toward the sunset side)
+  const ridge = (x, base, amp, ph) => {
+    const u = x/LW, fade = u < .62 ? 1 : Math.max(.25, 1 - (u - .62)*2.2);
+    const hump = Math.exp(-Math.pow((u - .3)/.18, 2));
+    return Math.round(st - LH*(base + amp*(.5 + .25*Math.sin(u*9 + ph) + .15*Math.sin(u*23 + ph*2)) + .06*hump)*fade);
+  };
+  for (let x = 0; x < LW; x++){
+    const y1 = ridge(x, .17, .09, 1.3); b.fillStyle = '#5c4472'; b.fillRect(x, y1, 1, st - y1);
+    if ((x & 1) === 0){ b.fillStyle = '#6a4d78'; b.fillRect(x, y1, 1, 1); }
+  }
+  for (let x = 0; x < LW; x++){
+    const y2 = ridge(x, .13, .07, 4.1); b.fillStyle = '#3a2d4f'; b.fillRect(x, y2, 1, st - y2);
+  }
+  // illuminated anchor and KOBE on the mountainside
+  const ANCHOR = ["..111..","..1.1..","..111..",".11111.","...1...","1..1..1","11.1.11",".11111."];
+  const LET = {K:["1.1","1.1","11.","1.1","1.1"], O:["111","1.1","1.1","1.1","111"], B:["11.","1.1","11.","1.1","11."], E:["111","1..","11.","1..","111"]};
+  const ax0 = Math.round(LW*.3 - 13), ay0 = Math.round(st - LH*.235);
+  b.fillStyle = '#ffe3a0';
+  ANCHOR.forEach((r, y) => [...r].forEach((c, x) => { if (c === '1') b.fillRect(ax0 + x, ay0 + y, 1, 1); }));
+  [...'KOBE'].forEach((ch, i) => LET[ch].forEach((r, y) => [...r].forEach((c, x) => { if (c === '1') b.fillRect(ax0 + 10 + i*4 + x, ay0 + 2 + y, 1, 1); })));
+  const sx = sunX(), sr = Math.max(6, Math.round(LH*.055));
+  halfDisc(b, sx, st, sr + 3, '#f6a565');
+  halfDisc(b, sx, st, sr, '#ffd18c');
+  for (const c of city){
+    const x = Math.round(c.x*LW), w = Math.max(2, Math.round(c.w*LW)), h = Math.max(1, Math.round(c.h*LH));
+    b.fillStyle = '#2b2438'; b.fillRect(x, st - h, w, h);
+    if (h > 5 && c.lit > .35){ b.fillStyle = '#ffd68c'; for (let k = 2; k < h - 1; k += 3) if ((k + x) % 2) b.fillRect(x + 1, st - k, 1, 1); }
+  }
+  // Port Tower: drum-shaped red lattice, pinched in the middle
+  const tx = Math.round(LW*.62), th = Math.round(LH*.17);
+  for (let r = 0; r < th; r++){
+    const w = Math.round(5 + 8*Math.pow(Math.abs(r/th - .5)*2, 1.5)), x0 = tx - (w >> 1), y = st - 1 - r;
+    b.fillStyle = '#c4473d'; b.fillRect(x0, y, w, 1);
+    b.fillStyle = '#8e3430'; b.fillRect(x0 + Math.ceil(w*.6), y, w - Math.ceil(w*.6), 1);
+    if (r % 3 === 0){ b.fillStyle = '#e06a52'; b.fillRect(x0, y, Math.ceil(w*.6), 1); }
+  }
+  b.fillStyle = '#2b2438'; b.fillRect(tx - 7, st - th - 3, 15, 3);
+  b.fillStyle = '#ffd68c'; for (let x = tx - 6; x <= tx + 6; x += 2) b.fillRect(x, st - th - 2, 1, 1);
+  b.fillStyle = '#2b2438'; b.fillRect(tx - 4, st - th - 5, 9, 2);
+  b.fillStyle = '#ffe2a8'; b.fillRect(tx, st - th - 7, 1, 2);
+  // Maritime Museum: white sail-like lattice roof, tall bow next to the tower
+  const mx0 = tx + 8, mw = Math.min(30, Math.round(LW*.26), LW - mx0 - 1), mh = Math.round(th*.72);
+  if (mw > 8){
+    const prof = i => { const u = i/(mw - 1); return Math.round(3 + mh*(.28 + .72*Math.pow(1 - u, 1.7)) + Math.sin(u*Math.PI*3)*1.2*(1 - u)); };
+    for (let i = 0; i < mw; i++){
+      const x = mx0 + i, top = st - 1 - prof(i);
+      for (let y = top + 1; y < st - 3; y++){
+        const k = y - top;
+        if ((x + y) % 4 === 0 || (x - y + 400) % 4 === 0){ b.fillStyle = k < 4 ? '#e9eef2' : '#b9c3cf'; b.fillRect(x, y, 1, 1); }
+      }
+      b.fillStyle = '#f4f7fa'; b.fillRect(x, top, 1, 1);
+      if (i > 0){ const pt0 = st - 1 - prof(i - 1); if (Math.abs(pt0 - top) > 1){ b.fillRect(x, Math.min(pt0, top), 1, Math.abs(pt0 - top)); } }
+    }
+    b.fillStyle = '#f4f7fa'; b.fillRect(mx0, st - 1 - prof(0), 1, prof(0) - 2);
+    b.fillStyle = '#2b2438'; b.fillRect(mx0 - 1, st - 3, mw + 2, 3);
+    b.fillStyle = '#ffd68c'; for (let x = mx0 + 1; x < mx0 + mw - 1; x += 3) b.fillRect(x, st - 2, 1, 1);
+  }
+  bands(b, st, LH, SEA);
+
+  const f = fg.getContext('2d'), pt = pierTop(), px = pierX();
+  f.fillStyle = '#2c2f3c'; f.fillRect(0, pt + 3, px, LH - pt);
+  f.fillStyle = '#5b6070'; f.fillRect(0, pt, px, 3);
+  f.fillStyle = '#7a7f90'; f.fillRect(0, pt, px, 1);
+  f.fillStyle = '#23252f';
+  for (let y = pt + 10; y < LH; y += 9) f.fillRect(0, y, px, 1);
+  for (let y = pt + 3, k = 0; y < LH; y += 9, k++) for (let x = (k % 2) * 7; x < px; x += 14) f.fillRect(x, y, 1, 9);
+  f.fillStyle = '#3c4050'; f.fillRect(px - 1, pt, 1, LH - pt);
+  // tetrapods
+  [[3,22,5],[9,30,6],[2,38,6],[11,44,5]].forEach(([dx, dy, r]) => { disc(f, px + dx, pt + dy, r, r - 1, '#1b1e28'); f.fillStyle = '#2a2e3b'; f.fillRect(px + dx - 2, pt + dy - r + 1, 3, 1); });
+  // cooler box
+  const cx = heroX() - 14 - 12;
+  if (cx > 1){
+    f.fillStyle = '#d9dbe0'; f.fillRect(cx, pt - 6, 10, 6);
+    f.fillStyle = '#3a6ea5'; f.fillRect(cx - 1, pt - 8, 12, 2);
+    f.fillStyle = '#9aa0ab'; f.fillRect(cx, pt - 1, 10, 1);
+  }
+}
+
+/* ---------- fish sprites (for the catch card) ---------- */
+function drawFish(g, x, y, len, f){
+  g.save(); g.translate(x, y);
+  if (f.n === '長靴'){
+    g.fillStyle = f.col; g.beginPath();
+    g.moveTo(-len*.15,-len*.35); g.lineTo(len*.12,-len*.35); g.lineTo(len*.12,len*.05);
+    g.lineTo(len*.4,len*.12); g.lineTo(len*.4,len*.25); g.lineTo(-len*.15,len*.25); g.closePath(); g.fill();
+  } else if (f.n === 'マダコ'){
+    g.strokeStyle = f.col; g.lineWidth = len*.06; g.lineCap = 'round';
+    for (let i = 0; i < 6; i++){ g.beginPath(); g.moveTo(0, i*len*.02); g.quadraticCurveTo(len*.2, (i-2.5)*len*.08, len*.42, (i-2.5)*len*.07 + Math.sin(i)*len*.04); g.stroke(); }
+    g.fillStyle = f.col; g.beginPath(); g.ellipse(-len*.12, -len*.05, len*.21, len*.17, 0, 0, 7); g.fill();
+    g.fillStyle = '#111'; g.fillRect(-len*.06, -len*.08, 2, 2);
+  } else {
+    const a = f.n === 'タチウオ' ? .08 : (['チヌ','メバル','カサゴ'].includes(f.n) ? .2 : .14);
+    g.fillStyle = f.col;
+    g.beginPath(); g.ellipse(0, 0, len*.42, len*a, 0, 0, 7); g.fill();
+    g.beginPath(); g.moveTo(len*.36, 0); g.lineTo(len*.56, -len*a*1.1); g.lineTo(len*.56, len*a*1.1); g.closePath(); g.fill();
+    g.fillStyle = '#111'; g.fillRect(Math.round(-len*.3), Math.round(-len*a*.3), 2, 2);
+  }
+  g.restore();
+}
+const fishSprite = {};
+function getFishSprite(f){
+  if (fishSprite[f.n]) return fishSprite[f.n];
+  const c = document.createElement('canvas'); c.width = 40; c.height = 24;
+  const g = c.getContext('2d'); drawFish(g, 19, 12, 32, f);
+  const im = g.getImageData(0, 0, 40, 24);
+  for (let i = 3; i < im.data.length; i += 4) im.data[i] = im.data[i] > 110 ? 255 : 0;
+  g.putImageData(im, 0, 0);
+  // 1-dot dark outline
+  const o = document.createElement('canvas'); o.width = 40; o.height = 24; const og = o.getContext('2d');
+  for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) og.drawImage(c, dx, dy);
+  og.globalCompositeOperation = 'source-in'; og.fillStyle = '#0b0d16'; og.fillRect(0, 0, 40, 24);
+  og.globalCompositeOperation = 'source-over'; og.drawImage(c, 0, 0);
+  return fishSprite[f.n] = o;
+}
+
+/* ---------- scene ---------- */
+function bobber(x, y, depth, dip, t){
+  const s = depth > .5 ? 1 : 2;
+  y += Math.sin(t*2.2) > .7 ? 1 : 0;
+  ring(l, x, y + 1, 3*s, s, '#7d89b6');
+  const top = y - 3*s + Math.round(dip*3*s);
+  for (let r = 0; r < 4*s; r++){ const yy = top + r; if (yy > y) break; l.fillStyle = r < 2*s ? '#e8473a' : '#f4efe6'; l.fillRect(x - s, yy, 2*s + 1, 1); }
+  l.fillStyle = '#e8473a';
+  for (let r = 1; r <= 2*s; r++){ const yy = top - r; if (yy <= y) l.fillRect(x, yy, 1, 1); }
+  return {x, y: top - 2*s};
+}
+
+function drawScene(t){
+  const st = seaTop(), pt = pierTop();
+  const sh = S.shake > 0 ? Math.round((Math.random() - .5)*6*S.shake) : 0;
+  l.setTransform(1, 0, 0, 1, sh, 0);
+  l.drawImage(bg, 0, 0);
+
+  // sun glitter
+  const sx = sunX(), sr = Math.max(6, Math.round(LH*.055));
+  for (let i = 0; i < 12; i++){
+    const y = st + 1 + i*2 + Math.round(i*i*.15); if (y >= LH) break;
+    const w = Math.max(1, Math.round(sr*(1.7 - i*.1)*(.7 + .3*Math.sin(t*2 + i))));
+    l.fillStyle = i % 3 ? '#e4875f' : '#ffc27a';
+    l.fillRect(sx - (w >> 1) + Math.round(Math.sin(t*1.3 + i*1.7)*2), y, w, 1);
+  }
+  // wave dashes
+  for (let i = 1; i < 15; i++){
+    const k = i/15, y = st + Math.round((LH - st)*k*k), len = Math.round(2 + k*7), gap = Math.round(10 + k*22);
+    l.fillStyle = k < .4 ? '#4b4d7c' : '#2f3d6b';
+    const off = Math.floor(t*(4 + k*10)) % gap;
+    for (let x = -gap + off + (i*7) % gap; x < LW; x += gap) l.fillRect(x, y, len, 1);
+  }
+
+  // hero + rod geometry
+  const hx = heroX(), sxh = hx - 14;
+  const bob = (S.mode === 'idle' || S.mode === 'wait') && Math.sin(t*3) > 0 ? 1 : 0;
+  const jit = S.mode === 'fight' && S.surge > 1 ? (Math.random() < .5 ? -1 : 1) : 0;
+  const syh = pt - 33 + bob;
+  const hand = {x: sxh + 26 + jit, y: syh + 20};
+  const L = 30;
+  let a = -.7;
+  if (S.mode === 'charge') a = -.7 - S.power*1.4;
+  else if (S.mode === 'cast') a = S.castT < .25 ? (-.7 - S.d*1.4) + (S.castT/.25)*(S.d*1.4 + .4) : -.3 - (S.castT - .25)*.5;
+  const v = {x: Math.cos(a), y: Math.sin(a)}, n = {x: -v.y, y: v.x};
+  const bend = S.mode === 'fight' ? (.15 + S.tension*.6)*L*.45 : 0;
+  const tip = {x: Math.round(hand.x + v.x*L + n.x*bend), y: Math.round(hand.y + v.y*L + n.y*bend)};
+
+  // float, line, fish
+  let bobTop = null;
+  if (S.mode === 'cast'){
+    const s = spot(S.d), k = S.castT;
+    const p = {x: Math.round(tip.x + (s.x - tip.x)*k), y: Math.round(tip.y + (s.y - tip.y)*k - Math.sin(Math.PI*k)*LH*.25)};
+    l.fillStyle = '#e8473a'; l.fillRect(p.x - 1, p.y - 1, 2, 2);
+    bobTop = p;
+  } else if (['wait','bite','fight'].includes(S.mode)){
+    const p = bobPos(), dep = depthNow();
+    if (S.mode === 'fight'){
+      const s = dep > .5 ? 1 : 2;
+      disc(l, p.x + Math.round(Math.sin(t*9)*S.surge), p.y + 3*s, 5*s, s + 1, '#0c1226');
+      if (S.surge > 1 && Math.random() < .3) S.parts.push({x:p.x, y:p.y, vx:(Math.random()-.5)*30, vy:-15 - Math.random()*25, l:.4});
+      bobTop = bobber(p.x + (Math.random() < .5 ? 0 : jit), p.y, dep, .85, t);
+    } else bobTop = bobber(p.x, p.y, dep, S.dip, t);
+  }
+  if (bobTop) curve(l, tip, bobTop, S.mode === 'fight' ? 1 : 8, '#cfc8b8');
+  for (const p of S.parts){
+    if (p.ring){ const r = Math.round((1 - p.l)*10) + 2; ring(l, p.x, p.y, r, Math.max(1, r >> 2), '#9aa6d0'); }
+    else { l.fillStyle = '#eef3ff'; l.fillRect(Math.round(p.x), Math.round(p.y), 1, 1); }
+  }
+
+  l.drawImage(fg, 0, 0);
+
+  // hero (mirrored so the rod faces the sea)
+  l.save(); l.translate(sxh + 28 + jit, syh); l.scale(-1, 1); l.drawImage(heroC, 0, 0); l.restore();
+  line(l, hand.x - v.x*5, hand.y - v.y*5, tip.x, tip.y, '#1d1a1a');
+  l.fillStyle = '#1d1a1a'; l.fillRect(tip.x - 1, tip.y - 1, 2, 2);
+  l.setTransform(1, 0, 0, 1, 0, 0);
+}
+
+/* ---------- HUD (full resolution, pixel font) ---------- */
+const FONT = '"DotGothic16", monospace';
+function txt(s, x, y, size, color, align='left'){
+  ctx.font = `${size}px ${FONT}`; ctx.textAlign = align; ctx.textBaseline = 'top';
+  ctx.fillStyle = '#000'; ctx.fillText(s, x + 2, y + 2);
+  ctx.fillStyle = color; ctx.fillText(s, x, y);
+}
+function gauge(x, y, w, v, c){
+  ctx.fillStyle = '#000'; ctx.fillRect(x - 3, y - 3, w + 6, 16);
+  ctx.fillStyle = '#2a2f4c'; ctx.fillRect(x, y, w, 10);
+  ctx.fillStyle = c; ctx.fillRect(x, y, Math.round(w*v/4)*4, 10);
+}
+function hud(t){
+  const tt = Math.ceil(S.time);
+  txt(tt >= 60 ? '1:00' : '0:' + String(tt).padStart(2, '0'), 14, 10, 28, S.time < 10 && S.started ? '#ff8a6b' : '#f3ead8');
+  const total = S.catches.reduce((s, c) => s + c.wt, 0);
+  txt(fmt(total) + 'g', W - 14, 10, 24, '#f3ead8', 'right');
+  txt(S.catches.filter(c => !c.junk).length + '匹', W - 14, 40, 14, '#c9c1d6', 'right');
+
+  const bw = Math.min(300, W*.7), bx = Math.round((W - bw)/2), by = H - 30;
+  if (S.mode === 'charge'){
+    gauge(bx, by, bw, S.power, '#f2a660');
+    txt(meters(S.power) + 'm', bx + bw*S.power, by - 34, 20, '#f3ead8', 'center');
+    txt('根魚', bx, by + 13, 11, '#c9c1d6');
+    txt('青物', bx + bw, by + 13, 11, '#c9c1d6', 'right');
+  } else if (S.mode === 'fight'){
+    const c = S.tension < .6 ? '#7fc8a9' : S.tension < .85 ? '#f2c14e' : '#e8473a';
+    gauge(bx, by, bw, Math.min(1, S.tension), c);
+    ctx.fillStyle = 'rgba(232,71,58,.35)'; ctx.fillRect(bx + bw*.85, by, bw*.15, 10);
+    txt('テンション', bx, by - 22, 13, '#c9c1d6');
+    txt('あと ' + Math.max(0, Math.round(meters(S.d)*(1 - Math.max(0, S.p)))) + 'm', bx + bw, by - 22, 13, '#f3ead8', 'right');
+  }
+  if (S.msgT > 0 && S.msg){
+    ctx.globalAlpha = Math.min(1, S.msgT*2);
+    txt(S.msg, W/2, 70, 20, '#f3ead8', 'center');
+    ctx.globalAlpha = 1;
+  }
+  if (S.mode === 'bite' && Math.sin(t*25) > -.3) txt('いまだ！', W/2, H*.25, 32, '#ff5a4a', 'center');
+  if (S.mode === 'caught' && S.card){
+    const cw = Math.min(300, W*.85), ch = 176, cx = Math.round((W - cw)/2), cy = Math.round(H*.24);
+    ctx.fillStyle = '#000'; ctx.fillRect(cx + 5, cy + 5, cw, ch);
+    ctx.fillStyle = '#f3ead8'; ctx.fillRect(cx, cy, cw, ch);
+    ctx.fillStyle = '#1a1f36'; ctx.fillRect(cx + 3, cy + 3, cw - 6, ch - 6);
+    const spr = getFishSprite(S.card.f), k = 4;
+    ctx.drawImage(spr, Math.round(W/2 - 20*k), cy + 6, 40*k, 24*k);
+    txt(S.card.f.n, W/2, cy + 100, 24, '#f3ead8', 'center');
+    txt(S.card.f.junk ? '0g（持って帰る？）' : fmt(S.card.wt) + 'g', W/2, cy + 134, 16, '#f2a660', 'center');
+  }
+}
+
+/* ---------- results ---------- */
+function rankOf(total, n){
+  if (n === 0) return 'ボウズ';
+  if (total === 0) return '長靴コレクター';
+  if (total < 500) return 'ちょい投げ見習い';
+  if (total < 1500) return '堤防の常連';
+  if (total < 3500) return '波止の主';
+  return '瀬戸内の怪物';
+}
+let shareText = '';
+function endGame(){
+  S.over = true; running = false; holding = false;
+  const fish = S.catches.filter(c => !c.junk);
+  const total = S.catches.reduce((s, c) => s + c.wt, 0);
+  const rank = rankOf(total, S.catches.length);
+  let best = 0;
+  try { best = +localStorage.getItem('pier60-best') || 0; if (total > best) localStorage.setItem('pier60-best', total); } catch(e){}
+  $('#rank').textContent = '称号　' + rank;
+  $('#total').textContent = fmt(total);
+  $('#sub').textContent = `${fish.length}匹` + (total > best && best > 0 ? '　自己ベスト更新！' : best ? `　自己ベスト ${fmt(Math.max(best, total))}g` : '');
+  const groups = {};
+  for (const c of S.catches){ const g = groups[c.n] ||= {n:0, max:0}; g.n++; g.max = Math.max(g.max, c.wt); }
+  const list = $('#list'); list.innerHTML = '';
+  const names = Object.keys(groups);
+  if (!names.length){ const li = document.createElement('li'); li.textContent = '今日はアタリなし'; list.append(li); }
+  for (const k of names){
+    const li = document.createElement('li');
+    li.innerHTML = `<span>${k} ×${groups[k].n}</span><span>${k === '長靴' ? '0g' : '最大 ' + fmt(groups[k].max) + 'g'}</span>`;
+    list.append(li);
+  }
+  shareText = `60秒防波堤で${fish.length}匹、合計${fmt(total)}g釣れた！ 称号「${rank}」 #60秒防波堤` + (SHARE_URL ? '\n' + SHARE_URL : '');
+  $('#share').href = 'https://x.com/intent/post?text=' + encodeURIComponent(shareText);
+  $('#note').textContent = '';
+  $('#startCard').hidden = true; $('#resultCard').hidden = false; $('#over').hidden = false;
+}
+function start(){ S = newState(); running = true; $('#over').hidden = true; }
+$('#startBtn').addEventListener('click', start);
+$('#again').addEventListener('click', start);
+$('#copy').addEventListener('click', () => {
+  const done = () => $('#note').textContent = 'コピーしました';
+  try { navigator.clipboard.writeText(shareText).then(done, () => $('#note').textContent = shareText); }
+  catch(e){ $('#note').textContent = shareText; }
+});
+
+/* ---------- loop ---------- */
+function resize(){
+  const r = cv.getBoundingClientRect();
+  if (!r.width || !r.height) return;
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  W = r.width; H = r.height;
+  cv.width = Math.round(W*DPR); cv.height = Math.round(H*DPR);
+  SC = H/LH; LW = Math.ceil(W/SC);
+  lc.width = LW; lc.height = LH;
+  buildStatic();
+}
+addEventListener('resize', resize);
+let last = performance.now();
+function frame(now){
+  const dt = Math.min(.05, (now - last)/1000); last = now;
+  if (!W) resize();
+  if (W){
+    if (running) update(dt); else stepParts(dt);
+    const t = now/1000;
+    drawScene(t);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(lc, 0, 0, LW*SC, LH*SC);
+    if (running) hud(t);
+  }
+  requestAnimationFrame(frame);
+}
+resize();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
